@@ -61,3 +61,13 @@ FULL_PROFILE_DATA_UPDATED.md
 **/credentials*.json
 **/client_secret*.json
 **/service-account*.json
+# Append these lines to the existing project's root .gitignore (do not replace it)
+cloud_private/
+private-data/
+career-agent-private.enc
+*.db-wal
+*.db-shm
+
+# Keep the session-handling Python scripts; never commit exported session data.
+!tools/export_cloud_session_local.py
+!tools/restore_cloud_session.py

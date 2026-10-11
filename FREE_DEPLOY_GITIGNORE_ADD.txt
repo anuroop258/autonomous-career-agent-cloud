@@ -1,0 +1,6 @@
+# Append these lines to the existing project's root .gitignore (do not replace it)
+cloud_private/
+private-data/
+career-agent-private.enc
+*.db-wal
+*.db-shm
