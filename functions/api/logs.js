@@ -1,10 +1,17 @@
+import { json, allRows } from "../_lib/common.js";
 export async function onRequestGet({ request, env }) {
-  if (!env.DB) return Response.json({ detail: "D1 binding DB is missing" }, { status: 503 });
-  const id = new URL(request.url).searchParams.get("task_id");
-  const query = id
-    ? env.DB.prepare("SELECT task_id,portal,status,log_tail,error,updated_at FROM tasks WHERE task_id=?").bind(id)
-    : env.DB.prepare("SELECT task_id,portal,status,log_tail,error,updated_at FROM tasks ORDER BY requested_at DESC LIMIT 10");
-  const result = id ? await query.first() : await query.all();
-  if (id && !result) return Response.json({ detail: "Run not found" }, { status: 404 });
-  return Response.json({ logs: id ? [result] : (result.results || []) }, { headers: { "Cache-Control": "no-store" } });
+  if (!env.DB) return json({ detail: "D1 binding DB is missing" }, 503);
+  const u = new URL(request.url); const limit = Math.max(1, Math.min(300, Number.parseInt(u.searchParams.get("limit") || "100",10) || 100));
+  const type = u.searchParams.get("event_type"); const portal = u.searchParams.get("platform");
+  try {
+    let sql = "SELECT * FROM log_events WHERE 1=1"; const args = [];
+    if (type) { sql += " AND event_type=?"; args.push(type); }
+    if (portal) { sql += " AND platform=?"; args.push(portal); }
+    sql += " ORDER BY created_at DESC,id DESC LIMIT ?"; args.push(limit);
+    const events = await allRows(env.DB, sql, ...args);
+    const taskRows = await allRows(env.DB, "SELECT task_id,portal,status,error,log_tail,updated_at FROM tasks ORDER BY requested_at DESC LIMIT 10").catch(() => []);
+    const taskEvents = taskRows.map((r, i) => ({ id: -1-i, run_id:r.task_id, event_type:`cloud_run_${r.status}`, platform:r.portal, job_id:null, application_id:null, payload_json:JSON.stringify({ error:r.error || null, log_tail:r.log_tail || "" }), payload:{ error:r.error || null, log_tail:r.log_tail || "" }, created_at:r.updated_at }));
+    return json([...taskEvents, ...events.map(r => ({ ...r, payload: safeJson(r.payload_json) }))].slice(0, limit));
+  } catch { return json([]); }
 }
+function safeJson(s) { try { return JSON.parse(s || "{}"); } catch { return {}; } }

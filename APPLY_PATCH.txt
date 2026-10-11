@@ -1,0 +1,12 @@
+OVERLAY PATCH — CareerAgent Cloudflare API + counter fixes
+
+Extract the contents of this ZIP into the EXISTING CareerAgent repository root, preserving other project files. Do not extract into a new empty folder. Do not commit profile.json, applications.db, resume/, resume_versions/, .env, cloud_private/, session JSON, or private bundle files.
+
+Then follow README_CLOUDFLARE_API_COUNTERS_FIX.md:
+1. Keep Cloudflare Pages root directory blank (repository root), build command `cd webapp/frontend && npm ci && npm run build`, output `webapp/frontend/dist`.
+2. Apply migrations/0001_control.sql and migrations/0002_dashboard_data.sql to the `career-agent-control` D1 database.
+3. Verify Pages binding `DB` and set the existing Cloudflare/GitHub variables and secrets; add `AUTOMATION_PASSWORD` as a Cloudflare Production secret without sharing it.
+4. Review `git status --short`, stage only code/config additions, commit and push to trigger deployment.
+5. After deployment, run `py tools\publish_dashboard_data.py` from the local repository root to replace stale dashboard mirror rows with the latest local snapshot. This requires the existing private integration key at `cloud_private/dashboard_api_key.txt`, or `CLOUD_CONTROL_API_KEY` set in that terminal.
+
+This overlay intentionally does not include the private SQLite databases, profiles, resumes, encrypted session bundle, or API keys. The backend code will not become live until deployed to Cloudflare and the D1 migrations are applied.

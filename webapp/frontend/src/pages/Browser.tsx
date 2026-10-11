@@ -21,8 +21,10 @@ export default function Browser() {
     finally { setTesting(null); }
   };
   const launch = async (portal: string) => {
+    const password = window.prompt("Enter the automation password configured by the site owner to launch a browser action.");
+    if (password === null || !password.trim()) return;
     setLaunching(portal); setError(null); setMessage(null);
-    try { const r = await api.launchPortal(portal); setMessage(`${r.portal} browser session launched on port ${r.port}.`); setTimeout(refresh, 1200); }
+    try { const r = await api.launchPortal(portal, password); setMessage(`${r.portal} browser session launched on port ${r.port}.`); setTimeout(refresh, 1200); }
     catch (e) { setError(e instanceof ApiError ? e.message : String(e)); }
     finally { setLaunching(null); }
   };

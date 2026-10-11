@@ -1,9 +1,20 @@
 name: Free Cloud Browser Run
-run-name: Career Agent / ${{ inputs.portal }} / ${{ inputs.request_id }}
+run-name: CareerAgent / ${{ inputs.operation }} / ${{ inputs.portal }} / ${{ inputs.request_id }}
 
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Cloud operation to execute
+        required: true
+        default: job_search
+        type: choice
+        options: [job_search, tailor_resume]
+      job_ref:
+        description: Existing job reference for resume tailoring (portal:id)
+        required: false
+        default: ''
+        type: string
       portal:
         description: Job portal to run
         required: true
@@ -41,7 +52,7 @@ concurrency:
 
 jobs:
   run-agent:
-    if: ${{ inputs.confirm_submit == 'YES' }}
+    if: ${{ inputs.operation == 'tailor_resume' || inputs.confirm_submit == 'YES' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -65,6 +76,8 @@ jobs:
           REPORT_BASE: ${{ vars.CLOUD_CONTROL_API_BASE }}
           DATA_REPO: ${{ vars.CAREER_AGENT_DATA_REPO }}
           DATA_TOKEN: ${{ secrets.CAREER_AGENT_DATA_TOKEN }}
+          OPERATION: ${{ inputs.operation }}
+          JOB_REF: ${{ inputs.job_ref }}
         run: |
           set -euo pipefail
           test -n "$PRIVATE_KEY" || { echo 'Missing CAREER_AGENT_PRIVATE_BUNDLE_KEY secret'; exit 1; }
@@ -73,6 +86,7 @@ jobs:
           test -n "$DATA_REPO" || { echo 'Missing CAREER_AGENT_DATA_REPO repository variable'; exit 1; }
           test -n "$DATA_TOKEN" || { echo 'Missing CAREER_AGENT_DATA_TOKEN secret'; exit 1; }
           test -f private-data/career-agent-private.enc || { echo 'Private repo must contain career-agent-private.enc'; exit 1; }
+          if [[ "$OPERATION" == 'tailor_resume' ]]; then test -n "$JOB_REF" || { echo 'job_ref is required for resume tailoring'; exit 1; }; fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -85,7 +99,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r webapp/backend/requirements.txt
-          python -m playwright install --with-deps chromium
+          if [[ '${{ inputs.operation }}' == 'job_search' ]]; then python -m playwright install --with-deps chromium; fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends texlive-latex-base texlive-latex-recommended texlive-latex-extra
 
@@ -96,16 +110,20 @@ jobs:
         run: python tools/private_bundle.py decrypt --input private-data/career-agent-private.enc --root . --key-env
 
       - name: Apply a strict per-run target limit
+        if: ${{ inputs.operation == 'job_search' }}
         run: python tools/set_run_limit.py --portal '${{ inputs.portal }}' --max-jobs '${{ inputs.max_jobs }}'
 
       - name: Start isolated headless Chromium
+        if: ${{ inputs.operation == 'job_search' }}
         run: python tools/start_cloud_browser.py --portal '${{ inputs.portal }}'
 
       - name: Restore the encrypted portal login session
+        if: ${{ inputs.operation == 'job_search' }}
         run: python tools/restore_cloud_session.py --portal '${{ inputs.portal }}' --state 'cloud_private/sessions/${{ inputs.portal }}.json'
 
       - name: Run the existing portal agent
         id: run_agent
+        if: ${{ inputs.operation == 'job_search' }}
         continue-on-error: true
         env:
           CAREER_AGENT_TASK_ID: ${{ inputs.request_id }}
@@ -117,6 +135,25 @@ jobs:
           MAX_APPLICATIONS: ${{ inputs.max_jobs }}
           OLLAMA_ENABLED: '0'
         run: python tools/run_cloud_agent.py
+
+      - name: Tailor the selected resume using the existing engine
+        id: run_tailor
+        if: ${{ inputs.operation == 'tailor_resume' }}
+        continue-on-error: true
+        env:
+          CAREER_AGENT_TASK_ID: ${{ inputs.request_id }}
+          CAREER_AGENT_JOB_REF: ${{ inputs.job_ref }}
+          CLOUD_CONTROL_API_BASE: ${{ vars.CLOUD_CONTROL_API_BASE }}
+          CLOUD_CONTROL_API_KEY: ${{ secrets.CLOUD_CONTROL_API_KEY }}
+        run: python tools/run_cloud_tailor.py
+
+      - name: Publish current dashboard data to Cloudflare D1
+        id: sync_dashboard
+        if: ${{ always() && steps.restore_data.outcome == 'success' }}
+        env:
+          CLOUD_CONTROL_API_BASE: ${{ vars.CLOUD_CONTROL_API_BASE }}
+          CLOUD_CONTROL_API_KEY: ${{ secrets.CLOUD_CONTROL_API_KEY }}
+        run: python tools/publish_dashboard_data.py --key-env
 
       - name: Save updated encrypted state back to the private data repository
         id: save_state
@@ -138,7 +175,7 @@ jobs:
           fi
 
       - name: Report setup failure to control panel
-        if: ${{ failure() && steps.run_agent.outcome == 'skipped' }}
+        if: ${{ failure() && steps.run_agent.outcome == 'skipped' && steps.run_tailor.outcome == 'skipped' }}
         env:
           CLOUD_CONTROL_API_BASE: ${{ vars.CLOUD_CONTROL_API_BASE }}
           CLOUD_CONTROL_API_KEY: ${{ secrets.CLOUD_CONTROL_API_KEY }}
@@ -153,6 +190,6 @@ jobs:
           CAREER_AGENT_TASK_ID: ${{ inputs.request_id }}
         run: python tools/report_cloud_status.py --status failed --error 'The agent may have run, but the encrypted private state could not be saved. Do not start another run until persistence is repaired.'
 
-      - name: Mark workflow failed if the portal agent failed
-        if: ${{ steps.run_agent.outcome == 'failure' }}
+      - name: Mark workflow failed if the selected operation failed
+        if: ${{ steps.run_agent.outcome == 'failure' || steps.run_tailor.outcome == 'failure' }}
         run: exit 1

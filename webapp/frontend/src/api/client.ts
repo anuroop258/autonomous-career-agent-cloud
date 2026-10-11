@@ -1,27 +1,12 @@
 // Thin fetch wrapper over the FastAPI backend in webapp/backend/main.py.
 // Every function here maps 1:1 to a real endpoint -- no mock data.
 
-// Where the API lives:
-//  - Vite dev server (port 5175) or a file:// copy -> the local backend on 127.0.0.1:8001
-//  - anything else (UI served by the backend itself, locally or through a tunnel) -> same origin
-const DEV_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8001";
-const BASE =
-  typeof location !== "undefined" && (location.port === "5175" || location.protocol === "file:")
-    ? DEV_BASE
-    : "";
-
-// ---- API key (only needed when the backend runs with CAREER_AGENT_API_KEY) ----
-const KEY_NAME = "career-agent-key";
-export const getApiKey = (): string => {
-  try { return localStorage.getItem(KEY_NAME) || ""; } catch { return ""; }
-};
-export const setApiKey = (key: string) => {
-  try { localStorage.setItem(KEY_NAME, key); } catch { /* storage unavailable */ }
-};
-export const clearApiKey = () => {
-  try { localStorage.removeItem(KEY_NAME); } catch { /* storage unavailable */ }
-};
-export const AUTH_EVENT = "career-agent-auth-required";
+const configuredBase = import.meta.env.VITE_API_BASE;
+// Local Vite development uses the local FastAPI server. Production uses same-origin API routes.
+const BASE = configuredBase !== undefined
+  ? configuredBase
+  : (import.meta.env.DEV ? "http://127.0.0.1:8001" : "");
+export const CLOUD_RUNNER_MODE = import.meta.env.PROD && !configuredBase;
 
 export class ApiError extends Error {
   status: number;
@@ -32,31 +17,38 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const key = getApiKey();
-  const res = await fetch(`${BASE}${path}`, {
-    ...opts,
-    headers: { "Content-Type": "application/json", ...(key ? { "X-API-Key": key } : {}), ...(opts.headers || {}) },
-  });
-  if (res.status === 401 && path !== "/api/auth/check") {
-    window.dispatchEvent(new Event(AUTH_EVENT));
+  const headers = new Headers({ "Content-Type": "application/json" });
+  new Headers(opts.headers).forEach((value, key) => headers.set(key, value));
+  const isResumeTailoringAction = String(opts.method || "GET").toUpperCase() === "POST"
+    && /^\/api\/jobs\/[^/]+\/tailor-resume(?:\?|$)/.test(path);
+  if (isResumeTailoringAction && !headers.has("X-Automation-Password")) {
+    const password = typeof window !== "undefined"
+      ? window.prompt("Enter your CareerAgent automation password to tailor this resume:")
+      : null;
+    if (!password) throw new ApiError(401, "Resume tailoring was cancelled because no automation password was provided.");
+    headers.set("X-Automation-Password", password);
   }
+  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  const contentType = res.headers.get("content-type") || "";
   if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body.detail || detail;
-    } catch {
-      /* ignore */
+    let detail = res.statusText || `HTTP ${res.status}`;
+    if (contentType.includes("application/json")) {
+      try { const body = await res.json(); detail = body.detail || body.message || detail; } catch { /* invalid JSON */ }
+    } else {
+      detail = `API ${path} returned non-JSON content (HTTP ${res.status}). Check the API route and deployment.`;
     }
     throw new ApiError(res.status, detail);
   }
   if (res.status === 204) return undefined as T;
+  if (!contentType.includes("application/json")) {
+    throw new ApiError(res.status, `API ${path} returned HTML instead of JSON. The API route may be missing or not deployed.`);
+  }
   return res.json();
 }
 
 const get = <T,>(path: string) => req<T>(path);
-const post = <T,>(path: string, body?: unknown) =>
-  req<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+const post = <T,>(path: string, body?: unknown, headers?: Record<string, string>) =>
+  req<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined, headers });
 
 // ---- types (mirrors the backend's row shapes) ----------------------------
 export interface Check { name: string; status: "OK" | "WARN" | "FAIL"; detail: string }
@@ -123,14 +115,23 @@ export interface LogEvent {
 }
 export interface CdpStatus { [portal: string]: { port: number; connected: boolean } }
 export interface AutomationStatus {
-  status: "idle" | "queued" | "running" | "stopping"; portals: string[];
-  started_at: number | string | null; pid: number | null; pids?: Record<string, number>;
-  returncode: number | null; log_file?: string | null;
-  runs?: Record<string, { status: string; task_id?: string; pid?: number | null; started_at?: number | string | null; requested_at?: string | null; returncode?: number | null; log_file?: string | null; log_tail?: string; error?: string | null; human_verification?: boolean }>;
-  tasks?: Array<{ task_id: string; portal: string; status: string; requested_at?: string; started_at?: string | null; finished_at?: string | null; returncode?: number | null; error?: string | null }>;
-  worker?: { worker_id?: string; error?: string; cdp?: Record<string, boolean> };
+  status: "idle" | "running" | "stopping" | "queued" | "completed" | "failed" | "cancelled";
+  portals: string[]; started_at: number | null; pid: number | null; pids?: Record<string, number>;
+  returncode: number | null; log_file?: string | null; operation?: string | null; job_ref?: string | null;
+  tasks?: CloudTask[];
+  runs?: Record<string, { status: string; pid?: number; started_at?: number; returncode?: number | null; log_file?: string | null; human_verification?: boolean; task_id?: string; error?: string | null; max_jobs?: number }>;
 }
+export interface CloudTask { task_id: string; portal: string; max_jobs: number; status: string; requested_at: string; started_at?: string | null; finished_at?: string | null; error?: string | null; log_tail?: string; operation?: "job_search" | "tailor_resume"; job_ref?: string }
 export interface CustomQA { id: number; question: string; answer: string; created_at: string; updated_at: string }
+
+export interface Preferences { titles: string[]; locations: string[]; portals: string[]; min_match: number }
+export interface PreferencesResponse {
+  preferences: Preferences; agent_titles: string[]; saved: boolean; portals: string[];
+  suggested_titles: { title: string; count: number }[]; known_locations: { name: string; count: number }[];
+}
+export interface GroupedJob extends Job { platform: string; status: string; title_clean: string; group: string }
+export interface JobGroup { key: string; label: string; hint: string; count: number; jobs: GroupedJob[] }
+export interface SegregatedJobs { total: number; groups: JobGroup[] }
 
 // ---- API surface -----------------------------------------------------------
 export interface ResumeContentBank {
@@ -150,18 +151,30 @@ export interface ResumeContentBank {
 
 export const api = {
   health: () => get<{ ok: boolean }>("/api/health"),
-  authStatus: () => get<{ auth_required: boolean }>("/api/auth/status"),
-  authCheck: () => get<{ ok: boolean }>("/api/auth/check"),
   status: () => get<StatusResponse>("/api/status"),
   config: () => get<ConfigResponse>("/api/config"),
 
   cdpStatus: () => get<CdpStatus>("/api/cdp/status"),
   cdpTest: (portal: string) => post<{ portal: string; port: number; connected: boolean }>(`/api/cdp/test?portal=${portal}`),
-  launchPortal: (portal: string) => post<{ ok: boolean; portal: string; port: number; url: string; already_running: boolean; profile_dir: string }>("/api/portal/launch", { portal }),
+  launchPortal: (portal: string, password?: string) => post<{ ok: boolean; portal: string; port: number; url: string; already_running: boolean; profile_dir: string }>("/api/portal/launch", { portal }, password ? { "X-Automation-Password": password } : undefined),
 
   dashboard: () => get<DashboardSummary>("/api/dashboard"),
   analytics: () => get<Record<string, unknown>>("/api/analytics"),
   needsAttention: () => get<Record<string, unknown>[]>("/api/dashboard/needs-attention"),
+
+  preferences: () => get<PreferencesResponse>("/api/preferences"),
+  savePreferences: (p: Preferences & { apply_to_agent?: boolean }) =>
+    req<{ ok: boolean; preferences: Preferences; synced_to_agent: boolean }>("/api/preferences", { method: "PUT", body: JSON.stringify(p) }),
+  searchJobs: (p: { titles: string[]; locations: string[]; portals: string[]; q?: string; min_match?: number; per_group?: number }) => {
+    const qs = new URLSearchParams();
+    p.titles.forEach((t) => qs.append("titles", t));
+    p.locations.forEach((l) => qs.append("locations", l));
+    p.portals.forEach((x) => qs.append("portals", x));
+    if (p.q) qs.set("q", p.q);
+    if (p.min_match) qs.set("min_match", String(p.min_match));
+    qs.set("per_group", String(p.per_group ?? 500));
+    return get<SegregatedJobs>(`/api/search/jobs?${qs.toString()}`);
+  },
 
   jobs: (params: { portal?: string; eligible?: boolean; q?: string; limit?: number; offset?: number } = {}) => {
     const qs = new URLSearchParams();
@@ -200,10 +213,7 @@ export const api = {
     };
   }>(`/api/jobs/${encodeURIComponent(jobRef)}/tailor-resume`),
   resumeFor: (jobRef: string) => get<Record<string, unknown>>(`/api/jobs/${encodeURIComponent(jobRef)}/resume`),
-  resumePdfUrl: (jobRef: string) => {
-    const key = getApiKey();
-    return `${BASE}/api/jobs/${encodeURIComponent(jobRef)}/resume-file${key ? `?api_key=${encodeURIComponent(key)}` : ""}`;
-  },
+  resumePdfUrl: (jobRef: string) => `${BASE}/api/jobs/${encodeURIComponent(jobRef)}/resume-file`,
   masterResume: () => get<{ path: string; content: string }>("/api/resume/master"),
 
   resumeContentBank: () => get<ResumeContentBank>("/api/resume/content-bank"),
@@ -232,9 +242,11 @@ export const api = {
 
   runFollowups: () => post<{ created: number[] }>("/api/followups/run"),
 
-  startAutomation: (portals: string[]) => post<{ ok: boolean; started: { portal: string; task_id?: string; status?: string; pid?: number | null; already_running: boolean }[]; pids: Record<string, number>; portals: string[] }>("/api/automation/start", { portals }),
-  stopAutomation: () => post<{ ok: boolean }>("/api/automation/stop"),
-  continueIndeedHumanVerification: () => post<{ ok: boolean; message: string }>("/api/automation/indeed/continue"),
+  startAutomation: (portals: string[], password?: string) => post<{ ok: boolean; started: { portal: string; pid: number; already_running: boolean }[]; pids: Record<string, number>; portals: string[] }>("/api/automation/start", { portals }, password ? { "X-Automation-Password": password } : undefined),
+  startCloudAutomation: (portal: string, maxJobs: number, password: string) => post<{ ok: boolean; task_id: string; portal: string; max_jobs: number; status: string }>("/api/automation/start", { portal, max_jobs: maxJobs, confirmed: true }, { "X-Automation-Password": password }),
+  stopCloudAutomation: (password: string) => post<{ ok: boolean; status?: string }>("/api/automation/stop", {}, { "X-Automation-Password": password }),
+  stopAutomation: (password?: string) => post<{ ok: boolean }>("/api/automation/stop", {}, password ? { "X-Automation-Password": password } : undefined),
+  continueIndeedHumanVerification: (password?: string) => post<{ ok: boolean; message: string }>("/api/automation/indeed/continue", {}, password ? { "X-Automation-Password": password } : undefined),
   automationStatus: () => get<AutomationStatus>("/api/automation/status"),
 
   logs: (params: { limit?: number; event_type?: string; platform?: string } = {}) => {
