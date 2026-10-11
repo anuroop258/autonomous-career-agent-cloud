@@ -59,6 +59,13 @@ jobs:
       - name: Check out application code
         uses: actions/checkout@v4
 
+      - name: Register GitHub run with Cloudflare
+        env:
+          CLOUD_CONTROL_API_BASE: ${{ vars.CLOUD_CONTROL_API_BASE }}
+          CLOUD_CONTROL_API_KEY: ${{ secrets.CLOUD_CONTROL_API_KEY }}
+          CAREER_AGENT_TASK_ID: ${{ inputs.request_id }}
+        run: python tools/report_cloud_status.py --status running --error 'GitHub Actions runner registered; preparing private data checkout'
+
       - name: Check out private encrypted data bundle
         uses: actions/checkout@v4
         with:
@@ -193,3 +200,11 @@ jobs:
       - name: Mark workflow failed if the selected operation failed
         if: ${{ steps.run_agent.outcome == 'failure' || steps.run_tailor.outcome == 'failure' }}
         run: exit 1
+
+      - name: Report workflow cancellation to control panel
+        if: ${{ always() && cancelled() }}
+        env:
+          CLOUD_CONTROL_API_BASE: ${{ vars.CLOUD_CONTROL_API_BASE }}
+          CLOUD_CONTROL_API_KEY: ${{ secrets.CLOUD_CONTROL_API_KEY }}
+          CAREER_AGENT_TASK_ID: ${{ inputs.request_id }}
+        run: python tools/report_cloud_status.py --status cancelled --error 'GitHub Actions workflow was cancelled'
