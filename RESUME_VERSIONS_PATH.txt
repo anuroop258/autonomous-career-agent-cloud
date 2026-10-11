@@ -1,0 +1,4 @@
+Tailored resumes are stored at:
+resume_versions/<platform>/<short-company-hash>/<short-role-hash>/j-<8-char-job-key>/resume.pdf
+
+The complete company and role values remain in job_metadata.json.

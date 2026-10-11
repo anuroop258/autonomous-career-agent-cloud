@@ -1,0 +1,63 @@
+﻿# Secrets and environment variables
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# Personal profile and application history
+**/profile.json
+**/applications.db
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+PROFILE_DATA_UPDATE_MANIFEST.json
+
+# Personal resumes and generated documents
+/resume/
+/resume_versions/
+**/*.pdf
+**/*.doc
+**/*.docx
+resume_content_bank.json
+
+# Browser sessions and authentication
+**/*cookies*
+**/*session*
+**/*token*
+**/storage_state*
+**/browser_profile*/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Frontend dependencies and generated files
+node_modules/
+dist/
+build/
+
+# Logs and local temporary files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Local tooling state
+/.agents/
+/.unlazy/
+
+# Personal profile notes
+FULL_PROFILE_DATA_UPDATED.md
+
+# Local credentials, if present
+**/credentials*.json
+**/client_secret*.json
+**/service-account*.json

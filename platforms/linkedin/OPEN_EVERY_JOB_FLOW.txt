@@ -1,0 +1,11 @@
+Search-result handling in this build:
+
+1. Deduplicate only within the current run using seen_urls.
+2. Open every unique search-result job.
+3. Check the live page for an explicit Applied/already-submitted state.
+4. If Applied, do not click Apply.
+5. Otherwise compute JD match.
+6. If eligible, click native Naukri Apply or external Apply.
+7. External Apply is handed to CompanyWebsiteAgent.
+8. Native Naukri questions use the existing sequential QA/verification flow.
+9. Persistent applications.db is a record, not a pre-open skip gate.

@@ -1,0 +1,63 @@
+# Split cloud deployment: API serves the dashboard; worker owns Chromium/agent
+# processes; PostgreSQL carries the queue and shared snapshots. Session state is
+# Fernet-encrypted before being persisted to PostgreSQL.
+envVarGroups:
+  - name: career-agent-secrets
+    envVars:
+      - key: CAREER_AGENT_API_KEY
+        generateValue: true
+      - key: CAREER_AGENT_SESSION_ENCRYPTION_KEY
+        generateValue: true
+
+services:
+  - type: web
+    name: career-api
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - fromGroup: career-agent-secrets
+      - key: CAREER_AGENT_CLOUD
+        value: "1"
+      - key: CAREER_AGENT_CLOUD_BROWSER
+        value: "1"
+      - key: CAREER_AGENT_EXECUTION_MODE
+        value: queue
+      - key: DATA_DIR
+        value: /tmp/career-agent-api
+      - key: DATABASE_URL
+        fromDatabase:
+          name: career-agent-db
+          property: connectionString
+
+  - type: worker
+    name: career-worker
+    runtime: docker
+    plan: starter
+    dockerCommand: python cloud_worker.py
+    envVars:
+      - fromGroup: career-agent-secrets
+      - key: CAREER_AGENT_CLOUD
+        value: "1"
+      - key: CAREER_AGENT_CLOUD_BROWSER
+        value: "1"
+      - key: CAREER_AGENT_EXECUTION_MODE
+        value: queue
+      - key: DATA_DIR
+        value: /data
+      - key: DATABASE_URL
+        fromDatabase:
+          name: career-agent-db
+          property: connectionString
+    disk:
+      name: career-browser-data
+      mountPath: /data
+      sizeGB: 2
+
+databases:
+  - name: career-agent-db
+    databaseName: career_agent
+    user: career_agent
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+    ipAllowList: []

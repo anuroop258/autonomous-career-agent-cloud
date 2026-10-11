@@ -1,0 +1,1 @@
+"""Shine platform automation adapter."""

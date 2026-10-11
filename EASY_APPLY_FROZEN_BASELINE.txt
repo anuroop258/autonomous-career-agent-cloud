@@ -1,0 +1,67 @@
+EASY APPLY FROZEN BASELINE — V1
+
+Purpose
+-------
+This file freezes the LinkedIn native Easy Apply CTA baseline that has already been fixed.
+Future changes to the application-question/Next/Submit state machine must not change this
+frozen CTA layer without an explicit freeze-version update.
+
+FROZEN SCOPE
+------------
+1. Route detection: detect_apply_route() must identify LinkedIn native Easy Apply before
+   the external/company-site route. It recognizes the jobs apply control, LinkedIn
+   Apply-to accessibility labels, Easy Apply accessibility/text markers, Easy Apply
+   tracking/data attributes, and the semantic Easy Apply fallback.
+
+2. CTA clicking: click_easy_apply() must re-resolve the live CTA after LinkedIn
+   re-rendering and try the following recovery order on the exact native control:
+      - normal Playwright click
+      - forced Playwright click
+      - DOM dispatch_event('click')
+      - DOM element.click()
+   A successful click is authoritative; modal detection is diagnostic and must not turn
+   a successful CTA click into apply_not_found.
+
+3. Post-click surface wait: _wait_for_easy_apply_surface() waits for a native dialog/modal
+   or recognizable LinkedIn application content after the CTA click.
+
+4. Native-tab ownership: once the native CTA has been clicked, the job tab is marked as
+   owned by the native application flow and is not automatically closed. Unresolved native
+   questions must leave the tab open for manual completion.
+
+NOT FROZEN
+----------
+The question resolver, field filling, Next/Continue/Review state machine, final Submit
+gate, and native-form interpretation remain separately changeable. This separation is
+intentional so fixes to later Easy Apply steps do not regress the already-fixed CTA layer.
+
+CURRENT FLOW
+------------
+Job match -> route detection -> native Easy Apply CTA click [FROZEN]
+-> wait for application surface [FROZEN]
+-> question/form handling [CHANGEABLE]
+-> Next/Continue/Review [CHANGEABLE]
+-> Submit + verification [CHANGEABLE]
+
+GUARD
+-----
+EASY_APPLY_FREEZE_MANIFEST.json stores SHA-256 fingerprints of the frozen functions.
+platforms/linkedin/test_easy_apply_freeze_guard.py fails if those functions are changed
+without intentionally updating the freeze version/manifest.
+
+Evidence from the latest run
+-----------------------------
+The current test run reached:
+  APPLY ROUTE: easy_apply
+  LINKEDIN NATIVE APPLY TYPE: easy_apply_unknown
+  UNKNOWN LINKEDIN QUESTION: Search
+  NATIVE APPLY TAB LEFT OPEN: reason=unknown_question
+This demonstrates that the CTA route/click layer is getting the job into the native
+flow, while the later application-surface/question interpretation is a separate area
+still being worked on.
+
+ARCHITECTURE NOTE — QA ROUTING FIX
+----------------------------------
+The post-click/form answer architecture may be changed independently of the frozen Easy Apply CTA functions.
+The current question-answer fix moves fuzzy Custom Q&A behind semantic routing and deterministic project/profile resolution.
+Exact saved questions remain authoritative; generic project questions are answered from profile.json projects.

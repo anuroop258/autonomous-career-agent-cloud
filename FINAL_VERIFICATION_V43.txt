@@ -1,0 +1,14 @@
+V43 PLATFORM PARITY + FRONTEND FIX
+
+Targeted regression evidence after final cleanup:
+- merged portal wiring + Shine Hyderabad config: 4 passed
+- full-JD matching: 4 passed
+- cross-platform truthfulness + external routing: 8 passed
+- TimesJobs regression: 11 passed
+- LinkedIn external boundary: 1 passed
+- root JD matcher + Naukri native tab preservation: PASSED
+- Python compileall: exit 0
+
+Frontend build:
+- NOT VERIFIED. `npm run build` could not complete because npm dependency installation timed out in the working environment and the extracted node_modules tree was incomplete.
+- No frontend build-pass claim is made.

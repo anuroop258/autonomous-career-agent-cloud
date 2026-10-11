@@ -1,0 +1,25 @@
+{
+  "freeze_version": "EASY_APPLY_CTA_BASELINE_V1",
+  "scope": [
+    "route_detection",
+    "native_cta_click",
+    "post_click_surface_wait"
+  ],
+  "functions": {
+    "detect_apply_route": {
+      "sha256": "07de3ec9f53d889faca6a7647f843e9300182b23833650174738b55439c30551",
+      "start_line": 317,
+      "end_line": 359
+    },
+    "click_easy_apply": {
+      "sha256": "85c9225df4bf9f76eb0b5ae0ab37901687298a131299782ddb87a7696c3780ed",
+      "start_line": 361,
+      "end_line": 499
+    },
+    "_wait_for_easy_apply_surface": {
+      "sha256": "443fa99e03af589a59b034e0deb191d74a7a80a39c616db5b2b9461fdb1b6dd1",
+      "start_line": 501,
+      "end_line": 530
+    }
+  }
+}
