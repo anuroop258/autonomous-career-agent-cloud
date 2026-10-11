@@ -1,5 +1,5 @@
 import type { ReactNode, ComponentType } from "react";
-import logoUrl from "../assets/myjobb-logo.svg";
+import logoUrl from "../assets/careeragent-logo.svg";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -32,7 +32,7 @@ type Item = {
 type NavGroup = { label: string; items: Item[] };
 
 // Keep every functional section from the Career Agent sidebar reachable.
-// The MyJobb redesign changes presentation, not product capabilities.
+// CareerAgent branding preserves the existing navigation and product capabilities.
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "WORKSPACE",
@@ -113,8 +113,8 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="mj-shell">
       <aside className="mj-sidebar-real">
-        <NavLink to="/" className="mj-logo-real" aria-label="MyJobb dashboard">
-          <img src={logoUrl} alt="myjobb" />
+        <NavLink to="/" className="mj-logo-real" aria-label="CareerAgent dashboard">
+          <img src={logoUrl} alt="CareerAgent logo" />
         </NavLink>
         <nav className="mj-nav-real" aria-label="Main navigation">
           {NAV_GROUPS.map((group) => (

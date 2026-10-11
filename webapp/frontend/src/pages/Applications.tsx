@@ -86,7 +86,7 @@ export default function Applications() {
           <div><strong>{needsYou}</strong><span>NEEDS YOU</span></div>
           <div><strong>—</strong><span>TIME SAVED</span></div>
         </div>
-        <div className="mj-summary-note">Typically, a person in your category sends around 1 application. <span>(based on myjobb data)</span></div>
+        <div className="mj-summary-note">CareerAgent keeps your application activity and outcomes organized in one place.</div>
       </section>
 
       <div className="mj-app-toolbar">
@@ -184,7 +184,7 @@ function ReceiptDrawer({ app, onClose, markSubmitted, busyId, generateResume, re
           <TicketRow label="QUESTIONS ANSWERED" value={String(answered)} />
           <TicketRow label="ATTEMPT" value="1st" />
           <TicketRow label="THROUGH" value={app.platform} />
-          <div className="mj-ticket-footer"><span>MYJOBB · 2026</span><div className="barcode" /></div>
+          <div className="mj-ticket-footer"><span>CAREERAGENT · 2026</span><div className="barcode" /></div>
           <div className="mj-stamp">{app.submitted_at ? dateText.replace(" ", " · ").toUpperCase() : "PENDING"}</div>
         </div>
         <p className="mj-drawer-copy">i'll keep an eye out and ping you if they reply.</p>

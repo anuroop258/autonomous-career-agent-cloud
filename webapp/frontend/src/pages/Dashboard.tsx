@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { MapPin, Bookmark, ExternalLink } from "lucide-react";
-import heroUrl from "../assets/myjobb-hero.avif";
+import heroUrl from "../assets/careeragent-hero.svg";
 import { usePolling } from "../hooks/usePolling";
 import { api, type Job, type Application } from "../api/client";
 import { ErrorBanner, Loading, EmptyState, StatCard } from "../components/ui";

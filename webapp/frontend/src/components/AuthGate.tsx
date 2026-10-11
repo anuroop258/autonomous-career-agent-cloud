@@ -68,7 +68,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#faf8f3", padding: 16 }}>
         <form onSubmit={submit} className="reference-panel" style={{ width: "100%", maxWidth: 380, display: "grid", gap: 14 }}>
-          <h1 style={{ margin: 0, fontSize: 22 }}>Career Agent</h1>
+          <h1 style={{ margin: 0, fontSize: 22 }}>CareerAgent</h1>
           <p style={{ margin: 0, color: "#6f6a60", lineHeight: 1.5 }}>Enter your access key to continue.</p>
           <input
             type="password" autoFocus autoComplete="current-password" value={key}
