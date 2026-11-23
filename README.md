@@ -2,7 +2,7 @@
 
 A multi-platform job-search and application workspace. It connects job discovery, job-description screening, portal-specific application workflows, job-focused resume tailoring, reusable application answers, and a React dashboard backed by FastAPI.
 
-**Website:** https://autonomous-career-agent-cloud.pages.dev/#/  
+**Website:** [https://autonomous-career-agent-cloud.pages.dev/#/](https://autonomous-career-agent-cloud.pages.dev/#/)  
 **GitHub:** https://github.com/anuroop258/autonomous-career-agent-cloud
 
 ## Capabilities
